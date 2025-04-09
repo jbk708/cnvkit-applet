@@ -15,9 +15,6 @@ main() {
     echo "Downloading input files..."
     dx-download-all-inputs
     
-    # Create output directories
-    mkdir -p out/theta2_input out/log_file
-    
     # Set variable names to match expected format
     # Handle array inputs (taking the first file in each array)
     TUMOR_CNS="${cnvkit_cns_path[0]}"
@@ -42,7 +39,7 @@ main() {
     fi
 
     # Set up log file
-    LOG_FILE="$SAMPLE_ID.cnvkit-to-theta2.log"
+    LOG_FILE="${SAMPLE_ID}.cnvkit-to-theta2.log"
     echo "Log file: $LOG_FILE"
     
     # Log version and configuration details
@@ -69,12 +66,12 @@ main() {
     if [ "$USE_VCF" = true ]; then
         echo "Converting CNS segments to THETA2 format with VCF data..." | tee -a "$LOG_FILE"
         cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" -v "$TUMOR_VCF" \
-            -o "${SAMPLE_ID}.theta2.input" \
+            -o "${SAMPLE_ID}.tumor.theta2.input" \
             2>&1 | tee -a "$LOG_FILE"
     else
         echo "Converting CNS segments to THETA2 format without VCF data..." | tee -a "$LOG_FILE"
         cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" \
-            -o "${SAMPLE_ID}.theta2.input" \
+            -o "${SAMPLE_ID}.tumor.theta2.input" \
             2>&1 | tee -a "$LOG_FILE"
     fi
     
@@ -82,19 +79,11 @@ main() {
     # THETA2 expects a paired tumor-normal, but we can work around this
     echo "Creating dummy normal file for tumor-only analysis..." | tee -a "$LOG_FILE"
     
-    # Get the number of segments for creating a matching dummy normal file
-    SEGMENT_COUNT=$(wc -l < "${SAMPLE_ID}.theta2.input")
-    
     # Create a "normal" counterpart with neutral copy number (2) for all segments
-    awk '{print $1, $2, $3, 1, 0.5}' "${SAMPLE_ID}.theta2.input" > "${SAMPLE_ID}.normal.theta2.input"
-    
-    # Move output files to the correct output directories
-    mv "${SAMPLE_ID}.theta2.input" "out/theta2_input/${SAMPLE_ID}.tumor.theta2.input"
-    mv "${SAMPLE_ID}.normal.theta2.input" "out/theta2_input/${SAMPLE_ID}.normal.theta2.input"
-    mv "$LOG_FILE" "out/log_file/$LOG_FILE"
+    awk '{print $1, $2, $3, 1, 0.5}' "${SAMPLE_ID}.tumor.theta2.input" > "${SAMPLE_ID}.normal.theta2.input"
     
     # Create a README file explaining the output
-    cat > "out/theta2_input/README.txt" << EOF
+    cat > "${SAMPLE_ID}.README.txt" << EOF
 THETA2 Input Files for Sample: ${SAMPLE_ID}
 
 This directory contains input files prepared for THetA2 analysis:
@@ -108,12 +97,7 @@ These files can be used with THetA2 as follows:
   RunTHetA [tumor_file] --TUMOR_FILE [normal_file] --NORMAL_FILE --NUM_PROCESSES [processes] --DIR [output_dir]
 EOF
     
-    mv "out/theta2_input/README.txt" "out/theta2_input/${SAMPLE_ID}.README.txt"
-    
-    # Upload outputs to DNAnexus
-    dx-upload-all-outputs
-    
-    echo "CNVkit to THETA2 conversion completed at $(date)" | tee -a "out/log_file/$LOG_FILE"
+    echo "CNVkit to THETA2 conversion completed at $(date)" | tee -a "$LOG_FILE"
 }
 
 # Execute the main function

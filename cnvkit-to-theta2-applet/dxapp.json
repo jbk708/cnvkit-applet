@@ -40,15 +40,31 @@
   ],
   "outputSpec": [
     {
-      "name": "theta2_input",
-      "label": "THETA2 Input Files",
-      "class": "array:file",
-      "help": "Files ready for THETA2 analysis"
+      "name": "tumor_theta2",
+      "label": "Tumor THETA2 Input",
+      "class": "file",
+      "patterns": ["*.tumor.theta2.input"],
+      "help": "Converted tumor segments in THETA2 format"
+    },
+    {
+      "name": "normal_theta2",
+      "label": "Normal THETA2 Input",
+      "class": "file",
+      "patterns": ["*.normal.theta2.input"],
+      "help": "Generated dummy normal file for tumor-only analysis"
+    },
+    {
+      "name": "readme",
+      "label": "README",
+      "class": "file",
+      "patterns": ["*.README.txt"],
+      "help": "Documentation file explaining the output files"
     },
     {
       "name": "log_file",
       "label": "Log File",
       "class": "file",
+      "patterns": ["*.cnvkit-to-theta2.log"],
       "help": "Log file of the conversion process"
     }
   ],
@@ -102,7 +118,7 @@
     "azure:westus": {
       "systemRequirements": {
         "*": {
-          "instanceType": "azure:mem2_ssd1_x8"
+          "instanceType": "azure:mem1_ssd1_x8"
         }
       }
     }
