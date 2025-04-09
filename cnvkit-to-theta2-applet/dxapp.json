@@ -1,0 +1,86 @@
+{
+  "name": "cnvkit_to_theta2",
+  "title": "CNVkit to THETA2 Converter",
+  "summary": "Converts CNVkit output to THETA2 format for tumor-only samples",
+  "dxapi": "1.0.0",
+  "version": "0.1.0",
+  "inputSpec": [
+    {
+      "name": "cnvkit_cns",
+      "label": "Tumor CNS file",
+      "class": "array:file",
+      "patterns": ["*.cns", "*.cns.gz"],
+      "optional": false,
+      "help": "CNVkit segmented copy number file (.cns)"
+    },
+    {
+      "name": "tumor_vcf",
+      "label": "Tumor VCF file",
+      "class": "array:file",
+      "optional": true,
+      "patterns": ["*.vcf", "*.vcf.gz"],
+      "help": "VCF file containing SNPs for the tumor sample"
+    },
+    {
+      "name": "reference_cnn",
+      "label": "Reference CNN file",
+      "class": "array:file",
+      "optional": false,
+      "patterns": ["*.cnn", "*.cnn.gz"],
+      "help": "CNVkit reference file (.cnn)"
+    },
+    {
+      "name": "sample_id",
+      "label": "Sample ID",
+      "class": "string",
+      "optional": true,
+      "help": "Sample identifier, to be used in output filenames",
+      "default": ""
+    }
+  ],
+  "outputSpec": [
+    {
+      "name": "theta2_input",
+      "label": "THETA2 Input Files",
+      "class": "array:file",
+      "help": "Files ready for THETA2 analysis"
+    },
+    {
+      "name": "log_file",
+      "label": "Log File",
+      "class": "file",
+      "help": "Log file of the conversion process"
+    }
+  ],
+  "runSpec": {
+    "timeoutPolicy": {
+      "*": {
+        "hours": 4
+      }
+    },
+    "interpreter": "bash",
+    "file": "src/script.sh",
+    "distribution": "Ubuntu",
+    "release": "20.04",
+    "version": "0",
+    "execDepends": [
+      {
+        "name": "docker"
+      }
+    ]
+  },
+  "access": {
+    "network": [
+      "*"
+    ]
+  },
+  "regionalOptions": {
+    "azure:westus": {
+      "systemRequirements": {
+        "*": {
+          "instanceType": "azure:mem2_ssd1_x8"
+        }
+      }
+    }
+  }
+} 
