@@ -6,9 +6,10 @@ main() {
     echo "Starting CNVkit to THETA2 conversion at $(date)"
     echo "Applet version: 0.1.0"
     
-    # Pull the CNVkit Docker image
-    echo "Pulling CNVkit Docker image..."
-    docker pull etal/cnvkit:latest
+    # Get system information
+    NUM_CORES=$(nproc)
+    AVAILABLE_MEM=$(free -g | awk '/^Mem:/{print $2}')
+    echo "Available resources: $NUM_CORES cores, ${AVAILABLE_MEM}GB memory"
     
     # Download input files from DNAnexus
     echo "Downloading input files..."
@@ -51,13 +52,14 @@ main() {
         echo "Sample ID: $SAMPLE_ID"
         echo "TUMOR_CNS: $TUMOR_CNS"
         echo "REFERENCE_CNN: $REFERENCE_CNN"
+        echo "Using $NUM_CORES CPU cores"
         if [ "$USE_VCF" = true ]; then
             echo "TUMOR_VCF: $TUMOR_VCF"
         else
             echo "TUMOR_VCF: Not provided"
         fi
-        echo "=== Docker and CNVkit Details ==="
-        docker run --rm etal/cnvkit:latest cnvkit.py version
+        echo "=== CNVkit Details ==="
+        cnvkit.py version
         echo "=================================="
     } | tee "$LOG_FILE"
     
@@ -66,15 +68,13 @@ main() {
     # Prepare the command based on whether VCF is available
     if [ "$USE_VCF" = true ]; then
         echo "Converting CNS segments to THETA2 format with VCF data..." | tee -a "$LOG_FILE"
-        docker run --rm -v "${PWD}:/data" etal/cnvkit:latest bash -c "cd /data && \
-            cnvkit.py export theta \"$TUMOR_CNS\" --reference \"$REFERENCE_CNN\" -v \"$TUMOR_VCF\" \
-            -o \"${SAMPLE_ID}.theta2.input\"" \
+        cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" -v "$TUMOR_VCF" \
+            -o "${SAMPLE_ID}.theta2.input" \
             2>&1 | tee -a "$LOG_FILE"
     else
         echo "Converting CNS segments to THETA2 format without VCF data..." | tee -a "$LOG_FILE"
-        docker run --rm -v "${PWD}:/data" etal/cnvkit:latest bash -c "cd /data && \
-            cnvkit.py export theta \"$TUMOR_CNS\" --reference \"$REFERENCE_CNN\" \
-            -o \"${SAMPLE_ID}.theta2.input\"" \
+        cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" \
+            -o "${SAMPLE_ID}.theta2.input" \
             2>&1 | tee -a "$LOG_FILE"
     fi
     

@@ -65,7 +65,31 @@
     "version": "0",
     "execDepends": [
       {
-        "name": "docker"
+        "name": "python3",
+        "package_manager": "apt"
+      },
+      {
+        "name": "python3-pip",
+        "package_manager": "apt"
+      },
+      {
+        "name": "tabix",
+        "package_manager": "apt"
+      },
+      {
+        "name": "cnvkit",
+        "package_manager": "pip",
+        "version": "0.9.10"
+      },
+      {
+        "name": "pandas",
+        "package_manager": "pip",
+        "version": "1.5.3"
+      },
+      {
+        "name": "numpy",
+        "package_manager": "pip",
+        "version": "1.24.3"
       }
     ]
   },
