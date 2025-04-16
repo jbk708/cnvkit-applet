@@ -2,35 +2,21 @@
 set -e -x -o pipefail
 
 main() {
-    # Log start time and script version
     echo "Starting CNVkit to THETA2 conversion at $(date)"
     echo "Applet version: 0.1.0"
     
-    # Get system information
     NUM_CORES=$(nproc)
     AVAILABLE_MEM=$(free -g | awk '/^Mem:/{print $2}')
     echo "Available resources: $NUM_CORES cores, ${AVAILABLE_MEM}GB memory"
     
-    # Download input files from DNAnexus
     echo "Downloading input files..."
     dx-download-all-inputs
     
-    # Set variable names to match expected format
     # Handle array inputs (taking the first file in each array)
     TUMOR_CNS="${cnvkit_cns_path[0]}"
     REFERENCE_CNN="${reference_cnn_path[0]}"
     
-    # Check if tumor_vcf was provided (it's optional)
-    if [ -n "${tumor_vcf_path[0]}" ]; then
-        TUMOR_VCF="${tumor_vcf_path[0]}"
-        USE_VCF=true
-        echo "Tumor VCF provided, will use for heterozygous SNP data"
-    else
-        USE_VCF=false
-        echo "No tumor VCF provided, will proceed without heterozygous SNP data"
-    fi
-    
-    # Determine sample ID
+    # Set up sample ID and log file
     SAMPLE_ID="${sample_id}"
     if [ -z "$SAMPLE_ID" ]; then
         # Extract sample ID from file name if not provided
@@ -38,11 +24,28 @@ main() {
         echo "No sample ID provided, using extracted ID: ${SAMPLE_ID}"
     fi
 
-    # Set up log file
     LOG_FILE="${SAMPLE_ID}.cnvkit-to-theta2.log"
     echo "Log file: $LOG_FILE"
     
-    # Log version and configuration details
+    if [ -n "${tumor_vcf_path[0]}" ]; then
+        TUMOR_VCF="${tumor_vcf_path[0]}"
+        TUMOR_VCF_INDEX="${tumor_vcf_index_path[0]}"
+        USE_VCF=true
+        echo "Tumor VCF provided, will use for heterozygous SNP data"
+        
+        if [ ! -f "${TUMOR_VCF}.tbi" ]; then
+            echo "Warning: VCF index file not found at ${TUMOR_VCF}.tbi" | tee -a "$LOG_FILE"
+            echo "Creating index file..." | tee -a "$LOG_FILE"
+            tabix -p vcf "$TUMOR_VCF" || {
+                echo "Error: Failed to create index file for VCF" | tee -a "$LOG_FILE"
+                exit 1
+            }
+        fi
+    else
+        USE_VCF=false
+        echo "No tumor VCF provided, will proceed without heterozygous SNP data"
+    fi
+    
     {
         echo "==== CNVkit to THETA2 Conversion Log ===="
         echo "Date: $(date)"
@@ -52,6 +55,8 @@ main() {
         echo "Using $NUM_CORES CPU cores"
         if [ "$USE_VCF" = true ]; then
             echo "TUMOR_VCF: $TUMOR_VCF"
+            echo "TUMOR_VCF_INDEX: ${TUMOR_VCF}.tbi"
+            echo "VCF file size: $(du -h "$TUMOR_VCF" | cut -f1)"
         else
             echo "TUMOR_VCF: Not provided"
         fi
@@ -62,43 +67,62 @@ main() {
     
     echo "Converting CNVkit data to THETA2 format for tumor-only sample..." | tee -a "$LOG_FILE"
     
-    # Prepare the command based on whether VCF is available
+    # Build base command with output filename
+    OUTPUT_FILE="${SAMPLE_ID}.interval_count"
+    CNVKIT_CMD="cnvkit.py export theta '$TUMOR_CNS' --reference '$REFERENCE_CNN' -o '$OUTPUT_FILE'"
+    
     if [ "$USE_VCF" = true ]; then
         echo "Converting CNS segments to THETA2 format with VCF data..." | tee -a "$LOG_FILE"
-        cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" -v "$TUMOR_VCF" \
-            -o "${SAMPLE_ID}.tumor.theta2.input" \
-            2>&1 | tee -a "$LOG_FILE"
+        echo "This step may take a while for whole-genome VCF files..." | tee -a "$LOG_FILE"
+        CNVKIT_CMD="$CNVKIT_CMD -v '$TUMOR_VCF'"
     else
         echo "Converting CNS segments to THETA2 format without VCF data..." | tee -a "$LOG_FILE"
-        cnvkit.py export theta "$TUMOR_CNS" --reference "$REFERENCE_CNN" \
-            -o "${SAMPLE_ID}.tumor.theta2.input" \
-            2>&1 | tee -a "$LOG_FILE"
     fi
     
-    # For tumor-only mode, we need to create a dummy normal file
-    # THETA2 expects a paired tumor-normal, but we can work around this
-    echo "Creating dummy normal file for tumor-only analysis..." | tee -a "$LOG_FILE"
+    eval "$CNVKIT_CMD" 2>&1 | tee -a "$LOG_FILE"
     
-    # Create a "normal" counterpart with neutral copy number (2) for all segments
-    awk '{print $1, $2, $3, 1, 0.5}' "${SAMPLE_ID}.tumor.theta2.input" > "${SAMPLE_ID}.normal.theta2.input"
+    # Handle the expected output files
+    if [ -f "$OUTPUT_FILE" ]; then
+        mv "$OUTPUT_FILE" "${SAMPLE_ID}.intervals"
+    fi
     
-    # Create a README file explaining the output
-    cat > "${SAMPLE_ID}.README.txt" << EOF
-THETA2 Input Files for Sample: ${SAMPLE_ID}
-
-This directory contains input files prepared for THetA2 analysis:
-- ${SAMPLE_ID}.tumor.theta2.input: Converted tumor segments from CNVkit$([ "$USE_VCF" = true ] && echo " with SNP data from VCF" || echo "")
-- ${SAMPLE_ID}.normal.theta2.input: Generated dummy normal file for tumor-only analysis
-
-For tumor-only analysis with THetA2, a dummy normal file was created with
-neutral copy number (LogR=0, BAF=0.5) for all segments.
-
-These files can be used with THetA2 as follows:
-  RunTHetA [tumor_file] --TUMOR_FILE [normal_file] --NORMAL_FILE --NUM_PROCESSES [processes] --DIR [output_dir]
-EOF
+    # Rename SNP-formatted files if they exist
+    for file in tumor normal; do
+        if [ -f "${SAMPLE_ID}.${file}.snp_formatted.txt" ]; then
+            mv "${SAMPLE_ID}.${file}.snp_formatted.txt" "${SAMPLE_ID}.${file}.txt"
+        fi
+    done
+    
+    if [ ! -f "${SAMPLE_ID}.normal.txt" ]; then
+        echo "Creating dummy normal file for tumor-only analysis..." | tee -a "$LOG_FILE"
+        # Create a "normal" counterpart with neutral copy number (2) for all segments
+        awk '{print $1, $2, $3, 1, 0.5}' "${SAMPLE_ID}.tumor.txt" > "${SAMPLE_ID}.normal.txt"
+    else
+        echo "Normal file already exists, skipping dummy file creation..." | tee -a "$LOG_FILE"
+    fi
     
     echo "CNVkit to THETA2 conversion completed at $(date)" | tee -a "$LOG_FILE"
+    
+    echo "Uploading output files to DNAnexus..."
+    
+    for file in tumor normal; do
+        if [ -f "${SAMPLE_ID}.${file}.txt" ]; then
+            file_id=$(dx upload "${SAMPLE_ID}.${file}.txt" --brief)
+            dx-jobutil-add-output "${file}_snp" "$file_id" --class=file
+        fi
+    done
+    
+    if [ -f "${SAMPLE_ID}.intervals" ]; then
+        intervals_id=$(dx upload "${SAMPLE_ID}.intervals" --brief)
+        dx-jobutil-add-output intervals "$intervals_id" --class=file
+    fi
+    
+    log_id=$(dx upload "$LOG_FILE" --brief)
+    dx-jobutil-add-output log_file "$log_id" --class=file
+    
+    echo "All files uploaded successfully"
 }
 
-# Execute the main function
-main 
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main
+fi 

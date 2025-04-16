@@ -22,6 +22,14 @@
       "help": "VCF file containing SNPs for the tumor sample"
     },
     {
+      "name": "tumor_vcf_index",
+      "label": "Tumor VCF Index file",
+      "class": "array:file",
+      "optional": true,
+      "patterns": ["*.tbi"],
+      "help": "Tabix index file for the tumor VCF"
+    },
+    {
       "name": "reference_cnn",
       "label": "Reference CNN file",
       "class": "array:file",
@@ -40,25 +48,28 @@
   ],
   "outputSpec": [
     {
-      "name": "tumor_theta2",
-      "label": "Tumor THETA2 Input",
+      "name": "intervals",
+      "label": "Intervals File",
       "class": "file",
-      "patterns": ["*.tumor.theta2.input"],
-      "help": "Converted tumor segments in THETA2 format"
+      "patterns": ["*.intervals"],
+      "help": "Intervals file for THETA2 analysis",
+      "optional": true
     },
     {
-      "name": "normal_theta2",
-      "label": "Normal THETA2 Input",
+      "name": "tumor_snp",
+      "label": "Tumor SNP File",
       "class": "file",
-      "patterns": ["*.normal.theta2.input"],
-      "help": "Generated dummy normal file for tumor-only analysis"
+      "patterns": ["*.tumor.txt"],
+      "help": "Tumor SNP allele counts for BAF analysis",
+      "optional": true
     },
     {
-      "name": "readme",
-      "label": "README",
+      "name": "normal_snp",
+      "label": "Normal SNP File",
       "class": "file",
-      "patterns": ["*.README.txt"],
-      "help": "Documentation file explaining the output files"
+      "patterns": ["*.normal.txt"],
+      "help": "Normal SNP allele counts for BAF analysis",
+      "optional": true
     },
     {
       "name": "log_file",
@@ -118,7 +129,7 @@
     "azure:westus": {
       "systemRequirements": {
         "*": {
-          "instanceType": "azure:mem1_ssd1_x8"
+          "instanceType": "azure:mem1_ssd1_x2"
         }
       }
     }
